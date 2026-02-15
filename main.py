@@ -3,7 +3,7 @@ from fastapi import FastAPI
 app = FastAPI()
  # This is a simple API endpoint that returns a JSON response indicating that the Sentinel service is online (GET request to the root URL "/"). 
 def read_root():
-    return {"status": "Sentinel Online", "key": "Security"}
+    return {"status": "Sentinel is Online", "key": "Security"}
 
 #POST request to "/trades/" that accepts a JSON payload representing a trade. The payload must match the structure defined by the Trade class. If the incoming data is valid according to the Trade schema, the create_trade function will return a JSON response confirming that the trade was received along with the data that was sent.
 
