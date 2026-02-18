@@ -87,7 +87,7 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
         trader_id=trade.trader_id
     )
     
-    db.add(new_trade)  #add to "Staging"
+    db.add(new_trade)  #add to "staging"
     db.commit()        #save permanently (The "Enter" key)
     db.refresh(new_trade) #get the generated ID
 
