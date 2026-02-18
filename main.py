@@ -1,24 +1,57 @@
-from fastapi import FastAPI
+from fastapi import FastAPI , HTTPException , Security , status
+from fastapi.security import APIKeyHeader
+import os
+import secrets
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field 
 
-app = FastAPI()
- # This is a simple API endpoint that returns a JSON response indicating that the Sentinel service is online (GET request to the root URL "/"). 
-def read_root():
-    return {"status": "Sentinel is Online", "key": "Security"}
+#load secrets from .env 
+API_KEY_SECRET=os.getenv("API_KEY")
+API_KEY_NAME = "X-UBS-Client-Key"
 
-#POST request to "/trades/" that accepts a JSON payload representing a trade. The payload must match the structure defined by the Trade class. If the incoming data is valid according to the Trade schema, the create_trade function will return a JSON response confirming that the trade was received along with the data that was sent.
+#if key is missing, crash immediately 
+if not API_KEY_SECRET:
+    raise RuntimeError("CRITICAL ERROR: UBS_API_KEY not found in environment!")
 
-from pydantic import BaseModel # Import the "Data Validator"
+app = FastAPI(title="UBS Sentinel: Trade Ingestion API")
 
-# 1. Define the "Order Form" (Schema)
-# This tells the Waiter EXACTLY what a valid trade looks like.
+api_key_header= APIKeyHeader(name=API_KEY_NAME , auto_error=False)
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    #constant time comparison prevents Timing Attacks
+    if api_key_header and secrets.compare_digest(api_key_header, API_KEY_SECRET):
+        return api_key_header
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials (Access Denied)"
+        )
+    
+#logic rules
+RESTRICTED_STOCKS={"UBS" , "UBSG" , "SCAM_CO" , "BLOCKED_LTD"}
+SINGLE_ORDER_LIMIT= 10000000
+
 class Trade(BaseModel):
-    trade_id: str
+    trade_id : str
     stock_ticker: str
-    price: float
-    quantity: int
+    price : float = Field(...,gt=0 , description="Price must be strictly positive")
+    quantity : float = Field(...,gt=0 , description="Quantity must be strictly positive")
+    trader_id : str
 
-# 2. Create the POST Door
-@app.post("/trades/")
-def create_trade(trade: Trade):
-    # This function only runs if the data matches the structure above.
-    return {"message": "Trade received", "data": trade}
+#security gate
+
+@app.post("/trades/" , dependencies =[Security(get_api_key)])
+def create_trade(trade : Trade):
+    #rule 1 - fat finger check
+    total_value=trade.price * trade.quantity
+    if total_value > SINGLE_ORDER_LIMIT:
+        raise HTTPException(
+            status_code=403,
+            detail=f"COMPLIANCE ALERT: Trading {trade.stock_ticker} is RESTRICTED."
+        )
+    #success-trade passes
+    return {
+        "status": "Trade Accepted",
+        "trade_id": trade.trade_id,
+        "message": "Logged to Silver Layer"
+    }
