@@ -42,12 +42,21 @@ class Trade(BaseModel):
 
 @app.post("/trades/" , dependencies =[Security(get_api_key)])
 def create_trade(trade : Trade):
+    #convert input to uppercase - ubs or UBS would mean the same
+    normalized_ticker = trade.stock_ticker.upper()
     #rule 1 - fat finger check
     total_value=trade.price * trade.quantity
     if total_value > SINGLE_ORDER_LIMIT:
         raise HTTPException(
             status_code=403,
             detail=f"COMPLIANCE ALERT: Trading {trade.stock_ticker} is RESTRICTED."
+        )
+    
+    #rule 2 - case insensitive 
+    if normalized_ticker in RESTRICTED_STOCKS:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"COMPLIANCE ALERT: Trading {normalized_ticker} is RESTRICTED."
         )
     #success-trade passes
     return {
