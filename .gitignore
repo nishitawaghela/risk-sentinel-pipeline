@@ -5,3 +5,7 @@ __pycache__/
 .env
 .venv
 venv/
+# Ignore Database Files
+*.db
+*.sqlite3
+trades.db
