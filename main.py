@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field 
 import models
 from database import SessionLocal, engine
+import json
+from confluent_kafka import Producer
 
 #create the database tables 
 models.Base.metadata.create_all(bind=engine)
@@ -21,7 +23,9 @@ if not API_KEY_SECRET:
     raise RuntimeError("CRITICAL ERROR: UBS_API_KEY not found in environment!")
 
 app = FastAPI(title="UBS Sentinel: Trade Ingestion API")
-
+#KAFKA PRODUCER CONFIG 
+kafka_producer = Producer({'bootstrap.servers': 'localhost:9092'})
+KAFKA_TOPIC = "live_trades"
 #database dependency
 #this opens a connection for the request, and closes it when done
 def get_db():
@@ -90,6 +94,28 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
     db.add(new_trade)  #add to "staging"
     db.commit()        #save permanently (The "Enter" key)
     db.refresh(new_trade) #get the generated ID
+
+
+    # sprint 2 - KAFKA REAL-TIME STREAMING 
+    try:
+        #create a dictionary of the event
+        trade_event = {
+            "trade_id": trade.trade_id,
+            "stock_ticker": normalized_ticker,
+            "price": trade.price,
+            "quantity": trade.quantity,
+            "trader_id": trade.trader_id,
+            "database_id": new_trade.id 
+        }
+        #convert to JSON bytes and send to kafka
+        kafka_producer.produce(
+            topic=KAFKA_TOPIC,
+            value=json.dumps(trade_event).encode('utf-8')
+        )
+        kafka_producer.flush() #force it to send immediately
+    except Exception as e:
+        print(f"KAFKA ERROR: Could not send message - {e}")
+
 
     #success-trade passes
     return {
