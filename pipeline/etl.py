@@ -1,6 +1,13 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType , DoubleType
+import pyspark
+
+# dynamic version matching-automatically detect your installed PySpark version 
+spark_version = pyspark.__version__
+kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.12:{spark_version}"
+
+print(f"Booting Spark {spark_version}. Fetching matching Kafka package: {kafka_package}...")
 
 #initialize spark session-automatically downloads java dependencies required for kafka
 spark = SparkSession.builder \
