@@ -3,19 +3,14 @@ from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType , DoubleType
 import pyspark
 
-# dynamic version matching-automatically detect your installed PySpark version 
-spark_version = pyspark.__version__
-kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.12:{spark_version}"
+# fix- dynamic version not working - hence fixed the version
+kafka_package = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0"
 
-#fix-changed _2.12 to _2.13 for Spark 4 compatibility
-kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.13:{spark_version}"
-
-print(f"Booting Spark {spark_version}. Fetching matching Kafka package: {kafka_package}...")
-
+print(f"Booting Spark {pyspark.__version__}. Fetching Kafka package: {kafka_package}...")
 #initialize spark session-automatically downloads java dependencies required for kafka
 spark = SparkSession.builder \
     .appName("UBS_Sentinel_Silver_Layer") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1") \
+    .config("spark.jars.packages", kafka_package) \
     .getOrCreate()
 
 #supress heavy spark logs so that we can see our print statements/output clearly
