@@ -7,6 +7,9 @@ import pyspark
 spark_version = pyspark.__version__
 kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.12:{spark_version}"
 
+#fix-changed _2.12 to _2.13 for Spark 4 compatibility
+kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.13:{spark_version}"
+
 print(f"Booting Spark {spark_version}. Fetching matching Kafka package: {kafka_package}...")
 
 #initialize spark session-automatically downloads java dependencies required for kafka
