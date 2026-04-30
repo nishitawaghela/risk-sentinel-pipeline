@@ -47,5 +47,16 @@ query = parsed_stream.writeStream \
     .format("console") \
     .start()
 
-#keep the stream running indefinitely
+
+
+# 5. Output to Local Parquet Files (The Big Data Way)
+# We use 'append' mode to just add new trades as they arrive.
+query = parsed_stream.writeStream \
+    .outputMode("append") \
+    .format("parquet") \
+    .option("path", "./data/silver_trades") \
+    .option("checkpointLocation", "./data/checkpoints/silver_trades") \
+    .start()
+
+# Keep the stream running indefinitely
 query.awaitTermination()
