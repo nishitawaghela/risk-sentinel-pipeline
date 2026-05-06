@@ -7,7 +7,7 @@ from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # 1. Load our trained Random Forest Model
-MODEL_PATH = '../saved_models/anomaly_detector_v2.pkl'
+MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v2.pkl'
 print("Loading ML Model...")
 model = joblib.load(MODEL_PATH)
 
