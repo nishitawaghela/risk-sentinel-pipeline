@@ -1,62 +1,64 @@
+import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType , DoubleType
-import pyspark
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
+from pyspark.sql.functions import current_timestamp
 
-# fix- dynamic version not working - hence fixed the version
-kafka_package = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0"
+def build_silver_layer():
+    print("Initializing Sentinel Spark Engine...")
+    
+    # 1. Initialize Spark Session
+    spark = SparkSession.builder \
+        .appName("Sentinel_ETL_Pipeline") \
+        .master("local[*]") \
+        .config("spark.sql.session.timeZone", "UTC") \
+        .getOrCreate()
 
-print(f"Booting Spark {pyspark.__version__}. Fetching Kafka package: {kafka_package}...")
-#initialize spark session-automatically downloads java dependencies required for kafka
-spark = SparkSession.builder \
-    .appName("UBS_Sentinel_Silver_Layer") \
-    .config("spark.jars.packages", kafka_package) \
-    .getOrCreate()
+    # 2. Define the Strict Financial Schema
+    # This prevents bad/corrupt data from crashing the ML model later
+    trade_schema = StructType([
+        StructField("trade_id", StringType(), False),
+        StructField("timestamp", TimestampType(), True),
+        StructField("trader_id", StringType(), True),
+        StructField("symbol", StringType(), True),
+        StructField("price", DoubleType(), True),
+        StructField("volume", IntegerType(), True),
+        StructField("action", StringType(), True),
+        StructField("order_type", StringType(), True),
+        StructField("status", StringType(), True),
+        StructField("label", IntegerType(), True) # 0=Normal, 1-5=Anomalies
+    ])
 
-#supress heavy spark logs so that we can see our print statements/output clearly
-spark.sparkContext.setLogLevel("WARN")
+    raw_data_path = "data/raw/advanced_trades_dataset.json"
+    silver_data_path = "data/silver_trades/"
 
-print("Spark session initialized successfully! Listening to Kafka topic 'trades'...")
+    print(f"Reading raw JSON data from: {raw_data_path}")
 
-# Define the schema (must match the structure of the JSON our fastapi produces)
-trade_schema = StructType([
-    StructField("trade_id", StringType(), True),
-    StructField("stock_ticker", StringType(), True),
-    StructField("price", DoubleType(), True),
-    StructField("quantity", IntegerType(), True),
-    StructField("trader_id", StringType(), True),
-    StructField("database_id", IntegerType(), True)
-])
+    # 3. Ingest the Data
+    df = spark.read.schema(trade_schema).json(raw_data_path)
 
-#read from kafka stream
-raw_stream = spark.readStream \
-    .format("kafka") \
-    .option("kafka.bootstrap.servers", "localhost:9092") \
-    .option("subscribe", "live_trades") \
-    .option("startingOffsets", "earliest") \
-    .load()
+    # 4. Data Cleansing & Transformation
+    # Drop any trades that somehow don't have a Trade ID or Symbol
+    df_cleaned = df.dropna(subset=["trade_id", "symbol"])
+    
+    # Add a processing timestamp for auditing
+    df_transformed = df_cleaned.withColumn("ingestion_timestamp", current_timestamp())
 
-#parse the JSON and apply the schema.kafka messages are in binary, so we need to cast them to string first
-parsed_stream = raw_stream.select(
-    from_json(col("value").cast("string"), trade_schema).alias("data")
-).select("data.*")
+    print("Data ingested and transformed. Writing to Silver Data Lake as Parquet...")
 
-#output to console (for testing our connection)
-query = parsed_stream.writeStream \
-    .outputMode("append") \
-    .format("console") \
-    .start()
+    # 5. Write to Parquet (Partitioned by Symbol)
+    df_transformed.write \
+        .mode("overwrite") \
+        .partitionBy("symbol") \
+        .parquet(silver_data_path)
 
+    print(f"Success! Silver layer built at: {silver_data_path}")
+    
+    # Show a preview of the clean data
+    df_transformed.show(5)
+    
+    spark.stop()
 
-
-# 5. Output to Local Parquet Files (The Big Data Way)
-# We use 'append' mode to just add new trades as they arrive.
-query = parsed_stream.writeStream \
-    .outputMode("append") \
-    .format("parquet") \
-    .option("path", "./data/silver_trades") \
-    .option("checkpointLocation", "./data/checkpoints/silver_trades") \
-    .start()
-
-# Keep the stream running indefinitely
-query.awaitTermination()
+if __name__ == "__main__":
+    # Ensure the silver directory exists
+    os.makedirs('data/silver_trades', exist_ok=True)
+    build_silver_layer()
