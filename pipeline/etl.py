@@ -33,8 +33,9 @@ def build_silver_layer():
 
     print(f"Reading raw JSON data from: {raw_data_path}")
 
+    
     # 3. Ingest the Data
-    df = spark.read.schema(trade_schema).json(raw_data_path)
+    df = spark.read.option("multiline", "true").schema(trade_schema).json(raw_data_path)
 
     # 4. Data Cleansing & Transformation
     # Drop any trades that somehow don't have a Trade ID or Symbol
