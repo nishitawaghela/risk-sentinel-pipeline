@@ -112,7 +112,8 @@ def build_advanced_dataset(num_records=5000):
             
         dataset.extend(trades)
 
-    with open('advanced_trades_dataset.json', 'w') as f:
+    # Make sure to create a 'raw' folder inside your 'data' folder first!
+    with open('data/raw/advanced_trades_dataset.json', 'w') as f:
         json.dump(dataset, f, indent=4)
         
     print(f"Dataset generated successfully! Total records: {len(dataset)}")
