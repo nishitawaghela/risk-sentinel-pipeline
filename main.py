@@ -9,7 +9,7 @@ import models
 from database import SessionLocal, engine
 import json
 from confluent_kafka import Producer
-
+import time
 #create the database tables 
 models.Base.metadata.create_all(bind=engine)
 
@@ -66,6 +66,7 @@ class Trade(BaseModel):
 @app.post("/trades/" , dependencies =[Security(get_api_key)])
 def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Added db injection
     #convert input to uppercase - ubs or UBS would mean the same
+    ingestion_time = time.time()
     normalized_ticker = trade.stock_ticker.upper()
     
     #rule 1 - fat finger check
@@ -106,17 +107,19 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
             "price": trade.price,
             "quantity": trade.quantity,
             "trader_id": trade.trader_id,
-            # 2. PASS THE CLOCK: Embed the timestamp into the Kafka message
+            # 2. NOW IT CAN BE USED HERE
             "ingestion_timestamp": ingestion_time 
         }
         
         kafka_producer.produce(
-            topic=KAFKA_TOPIC,
+            topic='live_trades', # <-- Make sure this matches your PySpark topic!
             value=json.dumps(trade_event).encode('utf-8')
         )
         kafka_producer.poll(0) 
     except Exception as e:
         print(f"KAFKA ERROR: {e}")
+        
+    return {"status": "success"}
 
 
     #success-trade passes

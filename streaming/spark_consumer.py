@@ -1,29 +1,11 @@
 import os
-import json
+import time  # <-- Required for latency calculation
 import pandas as pd
 import joblib
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
-for message in consumer:
-    # 1. Decode the message
-    trade_data = json.loads(message.value().decode('utf-8'))
-    ingestion_time = trade_data.get('ingestion_timestamp')
-    
-    # 2. Run your Random Forest Prediction
-    features = extract_features(trade_data) # (However you format your data for the model)
-    fraud_prediction = rf_model.predict(features)
-    
-    # 3. STOP THE CLOCK: Calculate End-to-End Latency in milliseconds
-    completion_time = time.time()
-    
-    if ingestion_time:
-        total_latency_ms = (completion_time - ingestion_time) * 1000
-        
-        if fraud_prediction[0] == 1:
-            print(f"🚨 FRAUD FLAGGED | Trade: {trade_data['trade_id']} | End-to-End Latency: {total_latency_ms:.2f} ms")
-        else:
-            print(f"✅ CLEAN | Trade: {trade_data['trade_id']} | End-to-End Latency: {total_latency_ms:.2f} ms")
+
 # 1. Load our trained Random Forest Model
 MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v2.pkl'
 print("Loading ML Model...")
@@ -41,6 +23,7 @@ spark = SparkSession.builder \
 spark.sparkContext.setLogLevel("WARN")
 
 # 3. Define the Schema of our incoming Kafka JSON
+# WE ADDED THE INGESTION TIMESTAMP HERE
 trade_schema = StructType([
     StructField("trade_id", StringType(), True),
     StructField("user_id", StringType(), True),
@@ -48,10 +31,11 @@ trade_schema = StructType([
     StructField("price", DoubleType(), True),
     StructField("volume", IntegerType(), True),
     StructField("action", StringType(), True),
-    StructField("order_type", StringType(), True)
+    StructField("order_type", StringType(), True),
+    StructField("ingestion_timestamp", DoubleType(), True) # <-- The timestamp from FastAPI
 ])
 
-# 4. The Micro-Batch Processing Function (Where the magic happens)
+# 4. The Micro-Batch Processing Function
 def process_batch(df, epoch_id):
     # Convert the Spark DataFrame to a Pandas DataFrame for the ML model
     pdf = df.toPandas()
@@ -59,28 +43,50 @@ def process_batch(df, epoch_id):
     if pdf.empty:
         return
     
+    # STOP THE CLOCK for this batch
+    current_time = time.time()
+    
     print(f"\n--- Processing Batch {epoch_id} | {len(pdf)} trades ---")
     
-    # Feature Engineering: One-Hot Encode just like we did in training
-    pdf['action_SELL'] = (pdf['action'] == 'SELL').astype(int)
-    pdf['order_type_MARKET'] = (pdf['order_type'] == 'MARKET').astype(int)
+    # Feature Engineering
+    # Safely handle missing columns if testing with old JSON formats
+    if 'action' in pdf.columns:
+        pdf['action_SELL'] = (pdf['action'] == 'SELL').astype(int)
+    else:
+        pdf['action_SELL'] = 0
+        
+    if 'order_type' in pdf.columns:
+        pdf['order_type_MARKET'] = (pdf['order_type'] == 'MARKET').astype(int)
+    else:
+        pdf['order_type_MARKET'] = 0
     
-    # Ensure all required columns are present
     X = pdf[EXPECTED_FEATURES]
     
     # Make Predictions
     predictions = model.predict(X)
     pdf['risk_prediction'] = predictions
     
-    # Filter and alert on anomalies (Any prediction other than 0/'Normal')
-    # Assuming 'Normal' is 0. If your label map is different, adjust this logic.
-    anomalies = pdf[pdf['risk_prediction'] != 0] 
-    
-    if not anomalies.empty:
-        print("🚨 FRAUD ALERT DETECTED 🚨")
-        print(anomalies[['trade_id', 'stock_symbol', 'action', 'risk_prediction']])
+    # Calculate Latency for every trade in the batch
+    if 'ingestion_timestamp' in pdf.columns:
+        pdf['latency_ms'] = (current_time - pdf['ingestion_timestamp']) * 1000
     else:
-        print("✅ All trades normal.")
+        pdf['latency_ms'] = 0.0
+    
+    # Separate anomalies and normal trades
+    anomalies = pdf[pdf['risk_prediction'] != 0] 
+    clean_trades = pdf[pdf['risk_prediction'] == 0]
+    
+    # Print Alerts with Latency
+    if not anomalies.empty:
+        for index, row in anomalies.iterrows():
+            print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id', 'N/A')} | End-to-End Latency: {row['latency_ms']:.2f} ms")
+            
+    if not clean_trades.empty:
+        # We only print the first 5 clean trades per batch so the terminal doesn't crash from printing too fast
+        for index, row in clean_trades.head(5).iterrows():
+            print(f"✅ CLEAN | Trade: {row.get('trade_id', 'N/A')} | End-to-End Latency: {row['latency_ms']:.2f} ms")
+        if len(clean_trades) > 5:
+            print(f"... and {len(clean_trades) - 5} more clean trades processed simultaneously.")
 
 # 5. Connect to Kafka and Start Streaming
 print("Connecting to Kafka Stream...")
