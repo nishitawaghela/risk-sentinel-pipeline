@@ -33,8 +33,7 @@ def get_db():
     try:
         yield db
     except Exception:
-        # If the client drops the connection or any error occurs, 
-        # safely abort the database transaction before closing.
+        # If Locust drops the connection, safely abort the transaction
         db.rollback()
         raise
     finally:
