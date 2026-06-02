@@ -99,26 +99,24 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
 
 
     # sprint 2 - KAFKA REAL-TIME STREAMING 
-    # sprint 2 - KAFKA REAL-TIME STREAMING 
     try:
-        #create a dictionary of the event
         trade_event = {
             "trade_id": trade.trade_id,
-            "stock_ticker": normalized_ticker,
+            "stock_ticker": trade.stock_ticker,
             "price": trade.price,
             "quantity": trade.quantity,
             "trader_id": trade.trader_id,
-            "database_id": new_trade.id 
+            # 2. PASS THE CLOCK: Embed the timestamp into the Kafka message
+            "ingestion_timestamp": ingestion_time 
         }
-        #convert to JSON bytes and send to kafka
+        
         kafka_producer.produce(
             topic=KAFKA_TOPIC,
             value=json.dumps(trade_event).encode('utf-8')
         )
-        # THE FIX: Asynchronous background delivery instead of blocking the thread
         kafka_producer.poll(0) 
     except Exception as e:
-        print(f"KAFKA ERROR: Could not send message - {e}")
+        print(f"KAFKA ERROR: {e}")
 
 
     #success-trade passes
