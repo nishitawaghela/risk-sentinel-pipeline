@@ -7,7 +7,8 @@ API_KEY = "ubs-secure-token-123"
 
 class TradeSimulator(HttpUser):
     # Sends requests as fast as possible to maximize throughput testing
-    wait_time = between(0, 0) 
+    # Wait between 100ms and 500ms between trades
+    wait_time = between(0.1, 0.5) 
 
     @task
     def send_trade(self):

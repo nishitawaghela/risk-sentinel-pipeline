@@ -32,8 +32,7 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
-    except Exception:
-        # If Locust drops the connection, safely abort the transaction
+    except BaseException: # <--- Catches EVERYTHING, including OS-level dropped sockets
         db.rollback()
         raise
     finally:
