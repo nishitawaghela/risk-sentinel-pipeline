@@ -7,7 +7,10 @@ SQLALCHEMY_DATABASE_URL= "sqlite:///./trades.db"
 #the engine (connection canager)
 #check_same_thread=False is needed only for SQLite
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=50,        # 50 per worker = 200 total
+    max_overflow=50,     # Max spike to 400 total (Safely under the 1000 limit)
+    pool_timeout=30      # Queue gracefully instead of crashing
 )
 
 #he session-every time a request comes in, we open a session. when done, we close it
