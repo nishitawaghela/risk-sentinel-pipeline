@@ -16,4 +16,4 @@ class TradeSimulator(HttpUser):
             "action": random.choice(["BUY", "SELL"]),
             "order_type": random.choice(["MARKET", "LIMIT"])
         }
-        self.client.post("/trade", json=payload)
+        self.client.post("/trades", json=payload)
