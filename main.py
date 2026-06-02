@@ -97,6 +97,7 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
 
 
     # sprint 2 - KAFKA REAL-TIME STREAMING 
+    # sprint 2 - KAFKA REAL-TIME STREAMING 
     try:
         #create a dictionary of the event
         trade_event = {
@@ -112,7 +113,8 @@ def create_trade(trade : Trade, db: Session = Depends(get_db)): # <--- Fixed: Ad
             topic=KAFKA_TOPIC,
             value=json.dumps(trade_event).encode('utf-8')
         )
-        kafka_producer.flush() #force it to send immediately
+        # THE FIX: Asynchronous background delivery instead of blocking the thread
+        kafka_producer.poll(0) 
     except Exception as e:
         print(f"KAFKA ERROR: Could not send message - {e}")
 
