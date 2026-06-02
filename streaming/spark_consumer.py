@@ -5,7 +5,25 @@ import joblib
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
-
+for message in consumer:
+    # 1. Decode the message
+    trade_data = json.loads(message.value().decode('utf-8'))
+    ingestion_time = trade_data.get('ingestion_timestamp')
+    
+    # 2. Run your Random Forest Prediction
+    features = extract_features(trade_data) # (However you format your data for the model)
+    fraud_prediction = rf_model.predict(features)
+    
+    # 3. STOP THE CLOCK: Calculate End-to-End Latency in milliseconds
+    completion_time = time.time()
+    
+    if ingestion_time:
+        total_latency_ms = (completion_time - ingestion_time) * 1000
+        
+        if fraud_prediction[0] == 1:
+            print(f"🚨 FRAUD FLAGGED | Trade: {trade_data['trade_id']} | End-to-End Latency: {total_latency_ms:.2f} ms")
+        else:
+            print(f"✅ CLEAN | Trade: {trade_data['trade_id']} | End-to-End Latency: {total_latency_ms:.2f} ms")
 # 1. Load our trained Random Forest Model
 MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v2.pkl'
 print("Loading ML Model...")
