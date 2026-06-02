@@ -32,9 +32,13 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # If the client drops the connection or any error occurs, 
+        # safely abort the database transaction before closing.
+        db.rollback()
+        raise
     finally:
         db.close()
-
 #security
 api_key_header= APIKeyHeader(name=API_KEY_NAME , auto_error=False)
 
