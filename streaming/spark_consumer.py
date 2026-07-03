@@ -79,10 +79,10 @@ def process_batch(df, epoch_id):
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)
     for i, (index, row) in enumerate(anomalies.iterrows()):
-        shap_row = shap_values[1][i]
+        predicted_class = int(row['risk_prediction'])
+        shap_row = shap_values[predicted_class][i]
         top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
-        print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id')} | Reason:{top_feature[0]} (SHAP: {top_feature[1]:.2f})")
-
+        print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id')} | Type: {predicted_class} | Reason: {top_feature[0]} (SHAP: {top_feature[1]:.2f})")
     
     # Print Alerts with Latency
     if not anomalies.empty:
