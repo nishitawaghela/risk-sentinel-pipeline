@@ -81,7 +81,7 @@ def process_batch(df, epoch_id):
         for index, row in anomalies.iterrows():
             predicted_class = int(row['risk_prediction'])
             shap_pos = x_index_list.index(index)
-            shap_row = shap_values[predicted_class][shap_pos]
+            shap_row = shap_values[shap_pos, :, predicted_class]
             top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
             print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id', 'N/A')} | Type: {predicted_class} | Reason: {top_feature[0]} (SHAP: {top_feature[1]:.2f}) | Latency: {row['latency_ms']:.2f} ms")
 
