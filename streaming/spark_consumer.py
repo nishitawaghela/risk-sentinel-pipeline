@@ -64,6 +64,13 @@ def process_batch(df, epoch_id):
     
     # Make Predictions
     predictions = model.predict(X)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X)
+    for i, (index, row) in enumerate(anomalies.iterrows()):
+        shap_row = shap_values[1][i]
+        top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
+        print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id')} | Reason:{top_feature[0]} (SHAP: {top_feature[1]:.2f})")
+
     pdf['risk_prediction'] = predictions
     
     # Calculate Latency for every trade in the batch
