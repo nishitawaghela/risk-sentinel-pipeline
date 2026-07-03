@@ -1,8 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker,declarative_base
 
-#database url- we use SQLite for dev. it creates a file named trades.db
-SQLALCHEMY_DATABASE_URL= "sqlite:///./trades.db"
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 #the engine (connection canager)
 #check_same_thread=False is needed only for SQLite
