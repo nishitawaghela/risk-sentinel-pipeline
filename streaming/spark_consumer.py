@@ -1,17 +1,17 @@
 import os
-import time  # <-- Required for latency calculation
+import time
 import pandas as pd
 import joblib
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 import shap
+
 # 1. Load our trained Random Forest Model
 MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v2.pkl'
 print("Loading ML Model...")
 model = joblib.load(MODEL_PATH)
 
-# Define the exact features our model expects
 EXPECTED_FEATURES = ['price', 'volume', 'action_SELL', 'order_type_MARKET']
 
 # 2. Initialize Spark Session with Kafka Support
@@ -22,8 +22,7 @@ spark = SparkSession.builder \
 
 spark.sparkContext.setLogLevel("WARN")
 
-# 3. Define the Schema of our incoming Kafka JSON
-# WE ADDED THE INGESTION TIMESTAMP HERE
+# 3. Define Schema
 trade_schema = StructType([
     StructField("trade_id", StringType(), True),
     StructField("user_id", StringType(), True),
@@ -32,24 +31,20 @@ trade_schema = StructType([
     StructField("volume", IntegerType(), True),
     StructField("action", StringType(), True),
     StructField("order_type", StringType(), True),
-    StructField("ingestion_timestamp", DoubleType(), True) # <-- The timestamp from FastAPI
+    StructField("ingestion_timestamp", DoubleType(), True)
 ])
 
-# 4. The Micro-Batch Processing Function
+# 4. Micro-Batch Processing Function
 def process_batch(df, epoch_id):
-    # Convert the Spark DataFrame to a Pandas DataFrame for the ML model
     pdf = df.toPandas()
     
     if pdf.empty:
         return
     
-    # STOP THE CLOCK for this batch
     current_time = time.time()
-    
     print(f"\n--- Processing Batch {epoch_id} | {len(pdf)} trades ---")
     
     # Feature Engineering
-    # Safely handle missing columns if testing with old JSON formats
     if 'action' in pdf.columns:
         pdf['action_SELL'] = (pdf['action'] == 'SELL').astype(int)
     else:
@@ -62,41 +57,42 @@ def process_batch(df, epoch_id):
     
     X = pdf[EXPECTED_FEATURES]
     
-    # Make Predictions
+    # Predictions
     predictions = model.predict(X)
-    
     pdf['risk_prediction'] = predictions
     
-    # Calculate Latency for every trade in the batch
+    # Latency
     if 'ingestion_timestamp' in pdf.columns:
         pdf['latency_ms'] = (current_time - pdf['ingestion_timestamp']) * 1000
     else:
         pdf['latency_ms'] = 0.0
     
-    # Separate anomalies and normal trades
-    anomalies = pdf[pdf['risk_prediction'] != 0] 
+    # Separate anomalies and clean
+    anomalies = pdf[pdf['risk_prediction'] != 0]
     clean_trades = pdf[pdf['risk_prediction'] == 0]
+
+    # SHAP — compute once for full batch
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)
-    for i, (index, row) in enumerate(anomalies.iterrows()):
-        predicted_class = int(row['risk_prediction'])
-        shap_row = shap_values[predicted_class][i]
-        top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
-        print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id')} | Type: {predicted_class} | Reason: {top_feature[0]} (SHAP: {top_feature[1]:.2f})")
-    
-    # Print Alerts with Latency
+    x_index_list = list(X.index)
+
+    # Print fraud alerts with SHAP reason
     if not anomalies.empty:
         for index, row in anomalies.iterrows():
-            print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id', 'N/A')} | End-to-End Latency: {row['latency_ms']:.2f} ms")
-            
+            predicted_class = int(row['risk_prediction'])
+            shap_pos = x_index_list.index(index)
+            shap_row = shap_values[predicted_class][shap_pos]
+            top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
+            print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id', 'N/A')} | Type: {predicted_class} | Reason: {top_feature[0]} (SHAP: {top_feature[1]:.2f}) | Latency: {row['latency_ms']:.2f} ms")
+
+    # Print clean trades
     if not clean_trades.empty:
-        # We only print the first 5 clean trades per batch so the terminal doesn't crash from printing too fast
         for index, row in clean_trades.head(5).iterrows():
-            print(f"✅ CLEAN | Trade: {row.get('trade_id', 'N/A')} | End-to-End Latency: {row['latency_ms']:.2f} ms")
+            print(f"✅ CLEAN | Trade: {row.get('trade_id', 'N/A')} | Latency: {row['latency_ms']:.2f} ms")
         if len(clean_trades) > 5:
             print(f"... and {len(clean_trades) - 5} more clean trades processed simultaneously.")
 
-# 5. Connect to Kafka and Start Streaming
+# 5. Connect to Kafka
 print("Connecting to Kafka Stream...")
 df_kafka = spark \
     .readStream \
@@ -106,12 +102,10 @@ df_kafka = spark \
     .option("startingOffsets", "latest") \
     .load()
 
-# Parse the JSON from the Kafka value column
 df_parsed = df_kafka.select(
     from_json(col("value").cast("string"), trade_schema).alias("data")
 ).select("data.*")
 
-# Start the stream and apply our ML function to every new batch
 query = df_parsed.writeStream \
     .outputMode("append") \
     .foreachBatch(process_batch) \
