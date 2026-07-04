@@ -1,6 +1,6 @@
 from locust import HttpUser, task, between
 import random
-
+import uuid
 
 API_KEY = "ubs-secure-token-123" 
 
