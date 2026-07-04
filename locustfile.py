@@ -19,7 +19,7 @@ class TradeSimulator(HttpUser):
         price = round(random.uniform(10.0, 500.0), 2)
         volume = random.randint(10, 500)
         payload = {
-            "trade_id": f"TRD-{random.randint(100000, 999999)}",
+            "trade_id": f"TRD-{uuid.uuid4()}",
             "user_id": "USR-LOAD-TEST",
             "stock_symbol": random.choice(["AAPL", "TSLA", "NVDA", "MSFT", "GOOG"]),
             "price": price,
