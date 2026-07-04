@@ -101,6 +101,7 @@ def create_trade(trade: Trade, db: Session = Depends(get_db)):
         }
         kafka_producer.produce(
             topic='live_trades',
+            key=trade.trade_id.encode('utf-8'),
             value=json.dumps(trade_event).encode('utf-8')
         )
         kafka_producer.poll(0)
