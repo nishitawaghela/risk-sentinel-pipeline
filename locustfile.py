@@ -1,8 +1,7 @@
 from locust import HttpUser, task, between
 import random
 
-# --- CONFIGURE YOUR AUTHENTICATION HERE ---
-# This must perfectly match the UBS_API_KEY in your .env file
+
 API_KEY = "ubs-secure-token-123" 
 
 class TradeSimulator(HttpUser):
