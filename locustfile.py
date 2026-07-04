@@ -18,7 +18,7 @@ class TradeSimulator(HttpUser):
         # - Max price (500) * Max volume (5000) = 2,500,000 (Safely below the 10,000,000 limit)
         # - Avoiding restricted tickers (UBS, SCAM_CO)
         price = round(random.uniform(10.0, 500.0), 2)
-        volume = random.randint(10, 5000)
+        volume = random.randint(10, 500)
         payload = {
             "trade_id": f"TRD-{random.randint(100000, 999999)}",
             "user_id": "USR-LOAD-TEST",
