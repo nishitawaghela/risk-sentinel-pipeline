@@ -8,7 +8,8 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType, I
 import shap
 
 # 1. Load our trained Random Forest Model
-MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v3.pkl'print("Loading ML Model...")
+MODEL_PATH = '/Users/nishitawaghela/sentinel/ml_engine/saved_models/anomaly_detector_v3.pkl'
+print("Loading ML Model...")
 model = joblib.load(MODEL_PATH)
 
 EXPECTED_FEATURES = ['price', 'volume', 'action_SELL', 'order_type_MARKET']
