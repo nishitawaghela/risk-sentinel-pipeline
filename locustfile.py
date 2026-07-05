@@ -5,7 +5,7 @@ import uuid
 API_KEY = "ubs-secure-token-123" 
 
 class TradeSimulator(HttpUser):
-    wait_time = between(0, 0.05) 
+    wait_time = between(0.1, 0.5) 
 
     @task
     def send_trade(self):
