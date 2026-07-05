@@ -72,7 +72,9 @@ def process_batch(df, epoch_id):
     clean_trades = pdf[pdf['risk_prediction'] == 0]
 
     flagged_pct = (len(anomalies) / len(pdf)) * 100 if len(pdf) > 0 else 0
-    print(f"--- Batch {epoch_id} summary: {len(pdf)} total | {len(anomalies)} flagged ({flagged_pct:.1f}%) | {len(clean_trades)} clean ---")
+    avg_latency = pdf['latency_ms'].mean()
+    median_latency = pdf['latency_ms'].median()
+    print(f"--- Batch {epoch_id} summary: {len(pdf)} total | {len(anomalies)} flagged ({flagged_pct:.1f}%) | {len(clean_trades)} clean | avg latency {avg_latency:.1f}ms | median {median_latency:.1f}ms ---")
 
 
     # SHAP — compute once for full batch
