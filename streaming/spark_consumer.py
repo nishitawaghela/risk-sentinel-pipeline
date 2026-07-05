@@ -28,7 +28,7 @@ trade_schema = StructType([
     StructField("user_id", StringType(), True),
     StructField("stock_symbol", StringType(), True),
     StructField("price", DoubleType(), True),
-    StructField("volume", IntegerType(), True),
+    StructField("volume", DoubleType(), True),
     StructField("action", StringType(), True),
     StructField("order_type", StringType(), True),
     StructField("ingestion_timestamp", DoubleType(), True)
