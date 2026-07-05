@@ -71,6 +71,10 @@ def process_batch(df, epoch_id):
     anomalies = pdf[pdf['risk_prediction'] != 0]
     clean_trades = pdf[pdf['risk_prediction'] == 0]
 
+    flagged_pct = (len(anomalies) / len(pdf)) * 100 if len(pdf) > 0 else 0
+    print(f"--- Batch {epoch_id} summary: {len(pdf)} total | {len(anomalies)} flagged ({flagged_pct:.1f}%) | {len(clean_trades)} clean ---")
+
+
     # SHAP — compute once for full batch
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)
