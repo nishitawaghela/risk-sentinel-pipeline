@@ -89,13 +89,10 @@ def process_batch(df, epoch_id):
             top_feature = max(zip(EXPECTED_FEATURES, shap_row), key=lambda x: abs(x[1]))
             print(f"🚨 FRAUD FLAGGED | Trade: {row.get('trade_id', 'N/A')} | Type: {predicted_class} | Reason: {top_feature[0]} (SHAP: {top_feature[1]:.2f}) | Latency: {row['latency_ms']:.2f} ms")
 
-    # Print clean trades
+   # Print a small clean-trade sample (these are the majority, so no need to log every one)
     if not clean_trades.empty:
-        for index, row in clean_trades.head(5).iterrows():
+        for index, row in clean_trades.head(3).iterrows():
             print(f"✅ CLEAN | Trade: {row.get('trade_id', 'N/A')} | Latency: {row['latency_ms']:.2f} ms")
-        if len(clean_trades) > 5:
-            print(f"... and {len(clean_trades) - 5} more clean trades processed simultaneously.")
-
 # 5. Connect to Kafka
 print("Connecting to Kafka Stream...")
 df_kafka = spark \
